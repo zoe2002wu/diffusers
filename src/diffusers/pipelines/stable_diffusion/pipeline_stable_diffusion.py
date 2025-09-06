@@ -1085,7 +1085,16 @@ class StableDiffusionPipeline(
                             return output
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         G = metric_tensor(noise_pred_text - noise_pred_uncond)
-                        noise_pred = noise_pred_uncond + self.guidance_scale * mm(G, (noise_pred_text - noise_pred_uncond))
+                                # 1. get previous step value (=t-1)
+
+                        prev_timestep = t - self.config.num_train_timesteps // self.num_inference_steps
+
+                        # 2. compute alphas, betas
+                        alpha_prod_t = self.alphas_cumprod[t]
+
+                        beta_prod_t = 1 - alpha_prod_t
+
+                        noise_pred = noise_pred_uncond + self.guidance_scale * beta_prod_t * mm(G, (noise_pred_text - noise_pred_uncond))
                     else:
                         print(f'euclidean at step {i}/{num_inference_steps}')
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
