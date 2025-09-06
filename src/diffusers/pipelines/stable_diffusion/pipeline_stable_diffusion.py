@@ -1054,8 +1054,12 @@ class StableDiffusionPipeline(
 
                 # perform guidance
                 if self.do_classifier_free_guidance:
-                    if riemann:
-                        print('riemann')
+                    # Only use Riemannian for timesteps below a threshold (later in sampling)
+                    timestep_threshold = 0.3  # Adjust as needed
+                    use_riemann = riemann and (t < timestep_threshold)
+                    
+                    if use_riemann:
+                        print(f'riemann at step {i}/{num_inference_steps}')
                         def metric_tensor(score):
                             print(f"Input score shape: {score.shape}")
                             score_term_1 = score.permute(0, 2, 3, 1).unsqueeze(-1).to(torch.float32)
@@ -1066,12 +1070,7 @@ class StableDiffusionPipeline(
                             print(f"G shape before mean: {G.shape}")
                             print(f"G values before mean - min: {G.min()}, max: {G.max()}, mean: {G.mean()}")
                             G = G.mean(dim=0)
-<<<<<<< HEAD
                             print(G.mean().item())
-=======
-                            print(f"G shape after mean: {G.shape}")
-                            print(f"G values after mean - min: {G.min()}, max: {G.max()}, mean: {G.mean()}")
->>>>>>> 0da065b9f (prints for shapes)
                             G_inv = torch.linalg.inv(G)
                             return G_inv.to(torch.float16)
                         def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
@@ -1086,7 +1085,7 @@ class StableDiffusionPipeline(
                         G = metric_tensor(noise_pred_text - noise_pred_uncond)
                         noise_pred = noise_pred_uncond + self.guidance_scale * mm(G, (noise_pred_text - noise_pred_uncond))
                     else:
-                        print('euclidean')
+                        print(f'euclidean at step {i}/{num_inference_steps}')
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
