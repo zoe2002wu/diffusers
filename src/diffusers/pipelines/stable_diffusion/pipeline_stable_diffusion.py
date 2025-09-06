@@ -805,6 +805,7 @@ class StableDiffusionPipeline(
         ] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
         riemann: bool = False,
+        riemann_threshold: float = 0.3,
         **kwargs,
     ):
         r"""
@@ -885,7 +886,9 @@ class StableDiffusionPipeline(
             riemann (`bool`, *optional*, defaults to `False`):
                 Whether to use Riemannian guidance for classifier-free guidance. When `True`, applies custom metric
                 tensor operations to the guidance calculation.
-
+            riemann_threshold (`float`, *optional*, defaults to 0.3):
+                The threshold for using Riemannian guidance. When riemann is `True`, and the timestep is less than riemann_threshold, `True`, applies custom metric
+                tensor operations to the guidance calculation.
         Examples:
 
         Returns:
@@ -1055,8 +1058,7 @@ class StableDiffusionPipeline(
                 # perform guidance
                 if self.do_classifier_free_guidance:
                     # Only use Riemannian for timesteps below a threshold (later in sampling)
-                    timestep_threshold = 0.3  # Adjust as needed
-                    use_riemann = riemann and (t < timestep_threshold)
+                    use_riemann = riemann and (t < riemann_threshold)
                     
                     if use_riemann:
                         print(f'riemann at step {i}/{num_inference_steps}')
