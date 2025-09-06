@@ -1058,9 +1058,8 @@ class StableDiffusionPipeline(
                 # perform guidance
                 if self.do_classifier_free_guidance:
                     # Only use Riemannian for timesteps below a threshold (later in sampling)
-                    use_riemann = riemann and (i > riemann_threshold)
                     
-                    if use_riemann:
+                    if riemann:
                         print(f'riemann at step {i}/{num_inference_steps}')
                         def metric_tensor(score):
                             print(f"Input score shape: {score.shape}")
@@ -1068,20 +1067,20 @@ class StableDiffusionPipeline(
                             score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2).to(torch.float32)
                             print(f"score_term_1 shape: {score_term_1.shape}")
                             print(f"score_term_2 shape: {score_term_2.shape}")
-                            G = score_term_1 @ score_term_2
-                            print(f"G shape before mean: {G.shape}")
-                            print(f"G values before mean - min: {G.min()}, max: {G.max()}, mean: {G.mean()}")
-                            G = G.mean(dim=0)
-                            print(G.mean().item())
+                            outer_product = score_term_1 @ score_term_2
+                            bs, channels, width, height = score.shape
+                            G = torch.eye(4, device = device).expand(bs, width, height, channels, channels) + outer_product
+                            eigvals, eigvh = torch.linalg.eigh(G)
+                            print(f"eigvals {eigvlas.mean().item()}")
                             G_inv = torch.linalg.inv(G)
                             return G_inv.to(torch.float16)
-                        def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
+                        def mm(A, B):# A is bs x 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
                             # Use the same dtype as the input tensors to avoid dtype mismatch
                             target_dtype = B.dtype
-                            A = A.to(target_dtype) # is 32 x 32 x 3 x 3
+                            A = A.to(target_dtype) # is bs x 32 x 32 x 3 x 3
                             B = B.to(target_dtype).permute(0,2,3,1).unsqueeze(-1) # is bs x 32 x 32 x 3 x 1
                             output = A @ B #bs x 32 x 32 x 3 x 1
-                            output = output.squeeze(-1).permute(0,3,1,2) # shape batch-size x 3 x 32 x 32
+                            output = output.squeeze(-1).permute(0,3,1,2) # shape bs x 3 x 32 x 32
                             return output
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         G = metric_tensor(noise_pred_text - noise_pred_uncond)
@@ -1094,7 +1093,7 @@ class StableDiffusionPipeline(
                             deprecate("set_alpha_to_zero", "1.0.0", deprecation_message, standard_warn=False)
                             set_alpha_to_one = kwargs["set_alpha_to_zero"]
                         
-                        num_train_timesteps = 1000,
+                        num_train_timesteps = 1000
                         beta_start = 0.0001
                         beta_end = 0.02
                         betas = torch.linspace(beta_start**0.5, beta_end**0.5, num_train_timesteps, dtype=torch.float32) ** 2
@@ -1106,6 +1105,7 @@ class StableDiffusionPipeline(
                         alpha_prod_t = alphas_cumprod[t]
 
                         beta_prod_t = 1 - alpha_prod_t
+                        print(beta_prod_t)
 
                         noise_pred = noise_pred_uncond + self.guidance_scale * beta_prod_t * mm(G, (noise_pred_text - noise_pred_uncond))
                     else:
