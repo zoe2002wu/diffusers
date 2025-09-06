@@ -1087,8 +1087,6 @@ class StableDiffusionPipeline(
                         G = metric_tensor(noise_pred_text - noise_pred_uncond)
                                 # 1. get previous step value (=t-1)
 
-                        prev_timestep = t - self.config.num_train_timesteps // self.num_inference_steps
-
                         # 2. compute alphas, betas
                         alpha_prod_t = self.alphas_cumprod[t]
 
