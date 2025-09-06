@@ -805,7 +805,7 @@ class StableDiffusionPipeline(
         ] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
         riemann: bool = False,
-        riemann_threshold: float = 40,
+        penalty_param: float = 1,
         **kwargs,
     ):
         r"""
@@ -1070,7 +1070,7 @@ class StableDiffusionPipeline(
                             outer_product = outer_product / variance
 
                             bs, channels, width, height = score.shape
-                            G = torch.eye(channels, device = device).expand(bs, width, height, channels, channels) + outer_product
+                            G = torch.eye(channels, device = device).expand(bs, width, height, channels, channels) + penalty_param * outer_product
                             eigvals, eigvh = torch.linalg.eigh(G)
                             print(f"eigvals {eigvals.mean().item()}")
 
