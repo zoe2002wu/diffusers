@@ -1057,11 +1057,21 @@ class StableDiffusionPipeline(
                     if riemann:
                         print('riemann')
                         def metric_tensor(score):
+                            print(f"Input score shape: {score.shape}")
                             score_term_1 = score.permute(0, 2, 3, 1).unsqueeze(-1).to(torch.float32)
                             score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2).to(torch.float32)
+                            print(f"score_term_1 shape: {score_term_1.shape}")
+                            print(f"score_term_2 shape: {score_term_2.shape}")
                             G = score_term_1 @ score_term_2
+                            print(f"G shape before mean: {G.shape}")
+                            print(f"G values before mean - min: {G.min()}, max: {G.max()}, mean: {G.mean()}")
                             G = G.mean(dim=0)
+<<<<<<< HEAD
                             print(G.mean().item())
+=======
+                            print(f"G shape after mean: {G.shape}")
+                            print(f"G values after mean - min: {G.min()}, max: {G.max()}, mean: {G.mean()}")
+>>>>>>> 0da065b9f (prints for shapes)
                             G_inv = torch.linalg.inv(G)
                             return G_inv.to(torch.float16)
                         def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
