@@ -1061,7 +1061,8 @@ class StableDiffusionPipeline(
                             score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2)
                             G = score_term_1 @ score_term_2
                             G = G.mean(dim=0)
-                            return G
+                            G_inv = torch.linalg.inv(G)
+                            return G_inv
                         def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
                             # Use the same dtype as the input tensors to avoid dtype mismatch
                             target_dtype = B.dtype
@@ -1070,7 +1071,6 @@ class StableDiffusionPipeline(
                             output = A @ B #bs x 32 x 32 x 3 x 1
                             output = output.squeeze(-1).permute(0,3,1,2) # shape batch-size x 3 x 32 x 32
                             return output
-                        print('if updating this should run')
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         G = metric_tensor(noise_pred_text - noise_pred_uncond)
                         noise_pred = noise_pred_uncond + self.guidance_scale * mm(G, (noise_pred_text - noise_pred_uncond))
