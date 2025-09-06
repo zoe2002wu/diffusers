@@ -804,6 +804,7 @@ class StableDiffusionPipeline(
             Union[Callable[[int, int, Dict], None], PipelineCallback, MultiPipelineCallbacks]
         ] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
+        riemann: bool = False,
         **kwargs,
     ):
         r"""
@@ -881,6 +882,9 @@ class StableDiffusionPipeline(
                 The list of tensor inputs for the `callback_on_step_end` function. The tensors specified in the list
                 will be passed as `callback_kwargs` argument. You will only be able to include variables listed in the
                 `._callback_tensor_inputs` attribute of your pipeline class.
+            riemann (`bool`, *optional*, defaults to `False`):
+                Whether to use Riemannian guidance for classifier-free guidance. When `True`, applies custom metric
+                tensor operations to the guidance calculation.
 
         Examples:
 
@@ -1048,30 +1052,27 @@ class StableDiffusionPipeline(
                     return_dict=False,
                 )[0]
 
-                riemann = False
-
                 # perform guidance
                 if self.do_classifier_free_guidance:
                     if riemann:
+                        print('riemann')
                         def metric_tensor(score):
-                            print("score shape",score.shape)
                             score_term_1 = score.permute(0, 2, 3, 1).unsqueeze(-1)
                             score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2)
                             G = score_term_1 @ score_term_2
                             G = G.mean(dim=0)
-                            print("G shape",G.shape)
                             return G
                         def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
                             A = A.to(torch.float64) # is 32 x 32 x 3 x 3
                             B = B.to(torch.float64).permute(0,2,3,1).unsqueeze(-1) # is bs x 32 x 32 x 3 x 1
                             output = A @ B #bs x 32 x 32 x 3 x 1
                             output = output.squeeze(-1).permute(0,3,1,2) # shape batch-size x 3 x 32 x 32
-                            print("output shape",output.shape)
                             return output
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         G = metric_tensor(noise_pred_text - noise_pred_uncond)
                         noise_pred = noise_pred_uncond + self.guidance_scale * mm(G, (noise_pred_text - noise_pred_uncond))
                     else:
+                        print('euclidean')
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
