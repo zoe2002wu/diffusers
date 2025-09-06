@@ -1063,8 +1063,10 @@ class StableDiffusionPipeline(
                             G = G.mean(dim=0)
                             return G
                         def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
-                            A = A.to(torch.float64) # is 32 x 32 x 3 x 3
-                            B = B.to(torch.float64).permute(0,2,3,1).unsqueeze(-1) # is bs x 32 x 32 x 3 x 1
+                            # Use the same dtype as the input tensors to avoid dtype mismatch
+                            target_dtype = B.dtype
+                            A = A.to(target_dtype) # is 32 x 32 x 3 x 3
+                            B = B.to(target_dtype).permute(0,2,3,1).unsqueeze(-1) # is bs x 32 x 32 x 3 x 1
                             output = A @ B #bs x 32 x 32 x 3 x 1
                             output = output.squeeze(-1).permute(0,3,1,2) # shape batch-size x 3 x 32 x 32
                             return output
