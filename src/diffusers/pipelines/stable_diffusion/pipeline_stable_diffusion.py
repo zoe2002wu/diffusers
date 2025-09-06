@@ -1061,6 +1061,7 @@ class StableDiffusionPipeline(
                             score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2).to(torch.float32)
                             G = score_term_1 @ score_term_2
                             G = G.mean(dim=0)
+                            print(G.mean().item())
                             G_inv = torch.linalg.inv(G)
                             return G_inv.to(torch.float16)
                         def mm(A, B):# A is 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
