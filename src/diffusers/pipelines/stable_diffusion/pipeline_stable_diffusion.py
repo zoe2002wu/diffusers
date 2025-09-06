@@ -1050,7 +1050,10 @@ class StableDiffusionPipeline(
 
                 # perform guidance
                 if self.do_classifier_free_guidance:
+                    def metric_tensor(score):
+                        print(score.shape)
                     noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    G = metric_tensor(noise_pred_text - noise_pred_uncond)
                     noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
                 if self.do_classifier_free_guidance and self.guidance_rescale > 0.0:
