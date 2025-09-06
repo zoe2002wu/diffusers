@@ -370,5 +370,19 @@ class DDIMInverseScheduler(SchedulerMixin, ConfigMixin):
             return (prev_sample, pred_original_sample)
         return DDIMSchedulerOutput(prev_sample=prev_sample, pred_original_sample=pred_original_sample)
 
+
+    def variance(self, timestep):
+        timestep = min(
+            timestep - self.config.num_train_timesteps // self.num_inference_steps, self.config.num_train_timesteps - 1
+        )
+
+        # 2. compute alphas, betas
+        # change original implementation to exactly match noise levels for analogous forward process
+        alpha_prod_t = self.alphas_cumprod[timestep] if timestep >= 0 else self.initial_alpha_cumprod
+
+        beta_prod_t = 1 - alpha_prod_t
+
+        return beta_prod_t
+
     def __len__(self):
         return self.config.num_train_timesteps
