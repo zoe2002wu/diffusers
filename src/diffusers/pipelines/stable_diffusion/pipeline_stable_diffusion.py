@@ -805,7 +805,7 @@ class StableDiffusionPipeline(
         ] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
         riemann: bool = False,
-        riemann_threshold: float = 0.3,
+        riemann_threshold: float = 40,
         **kwargs,
     ):
         r"""
@@ -1058,7 +1058,7 @@ class StableDiffusionPipeline(
                 # perform guidance
                 if self.do_classifier_free_guidance:
                     # Only use Riemannian for timesteps below a threshold (later in sampling)
-                    use_riemann = riemann and (i > 20)
+                    use_riemann = riemann and (i > riemann_threshold)
                     
                     if use_riemann:
                         print(f'riemann at step {i}/{num_inference_steps}')
