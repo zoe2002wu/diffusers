@@ -1060,7 +1060,6 @@ class StableDiffusionPipeline(
                     # Only use Riemannian for timesteps below a threshold (later in sampling)
                     
                     if riemann:
-                        print(f'riemann at step {i}/{num_inference_steps}')
                         def get_variance(timestep, scheduler):
                             """Get variance for any scheduler type"""
                             try:
@@ -1131,7 +1130,6 @@ class StableDiffusionPipeline(
                     
                         noise_pred = noise_pred_uncond + self.guidance_scale * mm(G_inv, (noise_pred_text - noise_pred_uncond))
                     else:
-                        print(f'euclidean at step {i}/{num_inference_steps}')
                         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                         noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
