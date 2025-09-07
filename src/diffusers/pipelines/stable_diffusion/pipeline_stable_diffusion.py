@@ -1104,8 +1104,8 @@ class StableDiffusionPipeline(
 
                             bs, channels, width, height = score.shape
                             G = torch.eye(channels, device = device).expand(bs, width, height, channels, channels) + penalty_param * outer_product
-                            eigvals, eigvh = torch.linalg.eigh(G)
-                            print(f"eigvals {eigvals.mean().item()}")
+                            # eigvals, eigvh = torch.linalg.eigh(G)
+                            # print(f"eigvals {eigvals.mean().item()}")
 
                             G_inv = torch.linalg.inv(G)
                             return G_inv.to(torch.float16)
