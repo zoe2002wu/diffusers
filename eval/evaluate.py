@@ -64,7 +64,7 @@ def generate_coco_30k(
             # get the caption
             prompt = row["prompt"]
             # generate the image
-            img = pipe([prompt], guidance_scale=7.5, generator=generator).images[0]
+            img = pipe([prompt], riemann = True, penalty_param = 100).images[0]
             # save the image
             img.save(os.path.join(out_dir, f"{row['coco_id']}_{sample_idx}.png"))
 
