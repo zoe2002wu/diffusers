@@ -25,6 +25,7 @@ from ...loaders import FromSingleFileMixin, IPAdapterMixin, StableDiffusionLoraL
 from ...models import AutoencoderKL, ImageProjection, UNet2DConditionModel
 from ...models.lora import adjust_lora_scale_text_encoder
 from ...schedulers import KarrasDiffusionSchedulers
+from ...schedulers.
 from ...utils import (
     USE_PEFT_BACKEND,
     deprecate,
@@ -1061,12 +1062,45 @@ class StableDiffusionPipeline(
                     
                     if riemann:
                         print(f'riemann at step {i}/{num_inference_steps}')
+                        def get_variance(timestep, scheduler):
+                            """Get variance for any scheduler type"""
+                            try:
+                                # Method 1: Check if scheduler has alphas_cumprod (DDIM, DDPM, etc.)
+                                if hasattr(scheduler, 'alphas_cumprod') and scheduler.alphas_cumprod is not None:
+                                    alpha_prod_t = scheduler.alphas_cumprod[timestep] if timestep >= 0 else scheduler.initial_alpha_cumprod
+                                    return 1 - alpha_prod_t
+                                
+                                # Method 2: Check if scheduler has sigmas (Euler, Heun, etc.)
+                                elif hasattr(scheduler, 'sigmas') and scheduler.sigmas is not None:
+                                    sigma = scheduler.sigmas[timestep] if timestep < len(scheduler.sigmas) else scheduler.sigmas[-1]
+                                    return sigma ** 2
+                                
+                                # Method 3: Check if scheduler has betas (DDPM)
+                                elif hasattr(scheduler, 'betas') and scheduler.betas is not None:
+                                    beta = scheduler.betas[timestep] if timestep < len(scheduler.betas) else scheduler.betas[-1]
+                                    return beta
+                                
+                                # Method 4: Fallback - try to get from scheduler config
+                                elif hasattr(scheduler, 'config') and hasattr(scheduler.config, 'beta_start'):
+                                    # Linear interpolation between beta_start and beta_end
+                                    progress = timestep / (scheduler.config.num_train_timesteps - 1)
+                                    beta = scheduler.config.beta_start + progress * (scheduler.config.beta_end - scheduler.config.beta_start)
+                                    return beta
+                                
+                                else:
+                                    # Ultimate fallback - return 1.0 (no variance scaling)
+                                    print(f"Warning: Could not determine variance for scheduler {type(scheduler).__name__}, using 1.0")
+                                    return 1.0
+                                    
+                            except Exception as e:
+                                print(f"Warning: Error getting variance for timestep {timestep}: {e}, using 1.0")
+                                return 1.0
                         def metric_tensor(score):
                             score_term_1 = score.permute(0, 2, 3, 1).unsqueeze(-1).to(torch.float32)
                             score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2).to(torch.float32)
                             outer_product = score_term_1 @ score_term_2
 
-                            variance = self.scheduler.variance(t)
+                            variance = get_variance(t, self.scheduler)
                             outer_product = outer_product / variance
 
                             bs, channels, width, height = score.shape
