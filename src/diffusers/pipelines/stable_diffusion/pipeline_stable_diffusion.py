@@ -1034,131 +1034,131 @@ class StableDiffusionPipeline(
         # 7. Denoising loop
         num_warmup_steps = len(timesteps) - num_inference_steps * self.scheduler.order
         self._num_timesteps = len(timesteps)
-        with self.progress_bar(total=num_inference_steps) as progress_bar:
-            for i, t in enumerate(timesteps):
-                if self.interrupt:
-                    continue
+        #with self.progress_bar(total=num_inference_steps) as progress_bar:
+        for i, t in enumerate(timesteps):
+            if self.interrupt:
+                continue
 
-                # expand the latents if we are doing classifier free guidance
-                latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
-                if hasattr(self.scheduler, "scale_model_input"):
-                    latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
+            # expand the latents if we are doing classifier free guidance
+            latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
+            if hasattr(self.scheduler, "scale_model_input"):
+                latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
 
-                # predict the noise residual
-                noise_pred = self.unet(
-                    latent_model_input,
-                    t,
-                    encoder_hidden_states=prompt_embeds,
-                    timestep_cond=timestep_cond,
-                    cross_attention_kwargs=self.cross_attention_kwargs,
-                    added_cond_kwargs=added_cond_kwargs,
-                    return_dict=False,
-                )[0]
+            # predict the noise residual
+            noise_pred = self.unet(
+                latent_model_input,
+                t,
+                encoder_hidden_states=prompt_embeds,
+                timestep_cond=timestep_cond,
+                cross_attention_kwargs=self.cross_attention_kwargs,
+                added_cond_kwargs=added_cond_kwargs,
+                return_dict=False,
+            )[0]
 
-                # perform guidance
-                if self.do_classifier_free_guidance:
-                    # Only use Riemannian for timesteps below a threshold (later in sampling)
-                    
-                    if riemann:
-                        def get_variance(timestep, scheduler):
-                            """Get variance for any scheduler type"""
-                            try:
-                                # Method 1: Check if scheduler has alphas_cumprod (DDIM, DDPM, etc.)
-                                if hasattr(scheduler, 'alphas_cumprod') and scheduler.alphas_cumprod is not None:
-                                    alpha_prod_t = scheduler.alphas_cumprod[timestep] if timestep >= 0 else scheduler.initial_alpha_cumprod
-                                    return 1 - alpha_prod_t
-                                
-                                # Method 2: Check if scheduler has sigmas (Euler, Heun, etc.)
-                                elif hasattr(scheduler, 'sigmas') and scheduler.sigmas is not None:
-                                    sigma = scheduler.sigmas[timestep] if timestep < len(scheduler.sigmas) else scheduler.sigmas[-1]
-                                    return sigma ** 2
-                                
-                                # Method 3: Check if scheduler has betas (DDPM)
-                                elif hasattr(scheduler, 'betas') and scheduler.betas is not None:
-                                    beta = scheduler.betas[timestep] if timestep < len(scheduler.betas) else scheduler.betas[-1]
-                                    return beta
-                                
-                                # Method 4: Fallback - try to get from scheduler config
-                                elif hasattr(scheduler, 'config') and hasattr(scheduler.config, 'beta_start'):
-                                    # Linear interpolation between beta_start and beta_end
-                                    progress = timestep / (scheduler.config.num_train_timesteps - 1)
-                                    beta = scheduler.config.beta_start + progress * (scheduler.config.beta_end - scheduler.config.beta_start)
-                                    return beta
-                                
-                                else:
-                                    # Ultimate fallback - return 1.0 (no variance scaling)
-                                    print(f"Warning: Could not determine variance for scheduler {type(scheduler).__name__}, using 1.0")
-                                    return 1.0
-                                    
-                            except Exception as e:
-                                print(f"Warning: Error getting variance for timestep {timestep}: {e}, using 1.0")
+            # perform guidance
+            if self.do_classifier_free_guidance:
+                # Only use Riemannian for timesteps below a threshold (later in sampling)
+                
+                if riemann:
+                    def get_variance(timestep, scheduler):
+                        """Get variance for any scheduler type"""
+                        try:
+                            # Method 1: Check if scheduler has alphas_cumprod (DDIM, DDPM, etc.)
+                            if hasattr(scheduler, 'alphas_cumprod') and scheduler.alphas_cumprod is not None:
+                                alpha_prod_t = scheduler.alphas_cumprod[timestep] if timestep >= 0 else scheduler.initial_alpha_cumprod
+                                return 1 - alpha_prod_t
+                            
+                            # Method 2: Check if scheduler has sigmas (Euler, Heun, etc.)
+                            elif hasattr(scheduler, 'sigmas') and scheduler.sigmas is not None:
+                                sigma = scheduler.sigmas[timestep] if timestep < len(scheduler.sigmas) else scheduler.sigmas[-1]
+                                return sigma ** 2
+                            
+                            # Method 3: Check if scheduler has betas (DDPM)
+                            elif hasattr(scheduler, 'betas') and scheduler.betas is not None:
+                                beta = scheduler.betas[timestep] if timestep < len(scheduler.betas) else scheduler.betas[-1]
+                                return beta
+                            
+                            # Method 4: Fallback - try to get from scheduler config
+                            elif hasattr(scheduler, 'config') and hasattr(scheduler.config, 'beta_start'):
+                                # Linear interpolation between beta_start and beta_end
+                                progress = timestep / (scheduler.config.num_train_timesteps - 1)
+                                beta = scheduler.config.beta_start + progress * (scheduler.config.beta_end - scheduler.config.beta_start)
+                                return beta
+                            
+                            else:
+                                # Ultimate fallback - return 1.0 (no variance scaling)
+                                print(f"Warning: Could not determine variance for scheduler {type(scheduler).__name__}, using 1.0")
                                 return 1.0
-                        def metric_tensor(score):
-                            score_term_1 = score.permute(0, 2, 3, 1).unsqueeze(-1).to(torch.float32)
-                            score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2).to(torch.float32)
-                            outer_product = score_term_1 @ score_term_2
+                                
+                        except Exception as e:
+                            print(f"Warning: Error getting variance for timestep {timestep}: {e}, using 1.0")
+                            return 1.0
+                    def metric_tensor(score):
+                        score_term_1 = score.permute(0, 2, 3, 1).unsqueeze(-1).to(torch.float32)
+                        score_term_2 = score.permute(0, 2, 3, 1).unsqueeze(-2).to(torch.float32)
+                        outer_product = score_term_1 @ score_term_2
 
-                            variance = get_variance(t, self.scheduler)
-                            outer_product = outer_product / variance
+                        variance = get_variance(t, self.scheduler)
+                        outer_product = outer_product / variance
 
-                            bs, channels, width, height = score.shape
-                            G = torch.eye(channels, device = device).expand(bs, width, height, channels, channels) + penalty_param * outer_product
-                            # eigvals, eigvh = torch.linalg.eigh(G)
-                            # print(f"eigvals {eigvals.mean().item()}")
+                        bs, channels, width, height = score.shape
+                        G = torch.eye(channels, device = device).expand(bs, width, height, channels, channels) + penalty_param * outer_product
+                        # eigvals, eigvh = torch.linalg.eigh(G)
+                        # print(f"eigvals {eigvals.mean().item()}")
 
-                            G_inv = torch.linalg.inv(G)
-                            return G_inv.to(torch.float16)
+                        G_inv = torch.linalg.inv(G)
+                        return G_inv.to(torch.float16)
 
-                        def mm(A, B):# A is bs x 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
-                            # Use the same dtype as the input tensors to avoid dtype mismatch
-                            target_dtype = B.dtype
-                            A = A.to(target_dtype) # is bs x 32 x 32 x 3 x 3
-                            B = B.to(target_dtype).permute(0,2,3,1).unsqueeze(-1) # is bs x 32 x 32 x 3 x 1
-                            output = A @ B #bs x 32 x 32 x 3 x 1
-                            output = output.squeeze(-1).permute(0,3,1,2) # shape bs x 3 x 32 x 32
-                            return output
-                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                        G_inv = metric_tensor(noise_pred_text - noise_pred_uncond)
-                                # 1. get previous step value (=t-1)
+                    def mm(A, B):# A is bs x 32 x 32 x 3 x 3 and B is bs x 3 x 32 x 32
+                        # Use the same dtype as the input tensors to avoid dtype mismatch
+                        target_dtype = B.dtype
+                        A = A.to(target_dtype) # is bs x 32 x 32 x 3 x 3
+                        B = B.to(target_dtype).permute(0,2,3,1).unsqueeze(-1) # is bs x 32 x 32 x 3 x 1
+                        output = A @ B #bs x 32 x 32 x 3 x 1
+                        output = output.squeeze(-1).permute(0,3,1,2) # shape bs x 3 x 32 x 32
+                        return output
+                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    G_inv = metric_tensor(noise_pred_text - noise_pred_uncond)
+                            # 1. get previous step value (=t-1)
 
-                        if kwargs.get("set_alpha_to_zero", None) is not None:
-                            deprecation_message = (
-                                "The `set_alpha_to_zero` argument is deprecated. Please use `set_alpha_to_one` instead."
-                            )
-                            deprecate("set_alpha_to_zero", "1.0.0", deprecation_message, standard_warn=False)
-                            set_alpha_to_one = kwargs["set_alpha_to_zero"]
-                    
-                        noise_pred = noise_pred_uncond + self.guidance_scale * mm(G_inv, (noise_pred_text - noise_pred_uncond))
-                    else:
-                        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-                        noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
+                    if kwargs.get("set_alpha_to_zero", None) is not None:
+                        deprecation_message = (
+                            "The `set_alpha_to_zero` argument is deprecated. Please use `set_alpha_to_one` instead."
+                        )
+                        deprecate("set_alpha_to_zero", "1.0.0", deprecation_message, standard_warn=False)
+                        set_alpha_to_one = kwargs["set_alpha_to_zero"]
+                
+                    noise_pred = noise_pred_uncond + self.guidance_scale * mm(G_inv, (noise_pred_text - noise_pred_uncond))
+                else:
+                    noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+                    noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-                if self.do_classifier_free_guidance and self.guidance_rescale > 0.0:
-                    # Based on 3.4. in https://huggingface.co/papers/2305.08891
-                    noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=self.guidance_rescale)
+            if self.do_classifier_free_guidance and self.guidance_rescale > 0.0:
+                # Based on 3.4. in https://huggingface.co/papers/2305.08891
+                noise_pred = rescale_noise_cfg(noise_pred, noise_pred_text, guidance_rescale=self.guidance_rescale)
 
-                # compute the previous noisy sample x_t -> x_t-1
-                latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+            # compute the previous noisy sample x_t -> x_t-1
+            latents = self.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
 
-                if callback_on_step_end is not None:
-                    callback_kwargs = {}
-                    for k in callback_on_step_end_tensor_inputs:
-                        callback_kwargs[k] = locals()[k]
-                    callback_outputs = callback_on_step_end(self, i, t, callback_kwargs)
+            if callback_on_step_end is not None:
+                callback_kwargs = {}
+                for k in callback_on_step_end_tensor_inputs:
+                    callback_kwargs[k] = locals()[k]
+                callback_outputs = callback_on_step_end(self, i, t, callback_kwargs)
 
-                    latents = callback_outputs.pop("latents", latents)
-                    prompt_embeds = callback_outputs.pop("prompt_embeds", prompt_embeds)
-                    negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
+                latents = callback_outputs.pop("latents", latents)
+                prompt_embeds = callback_outputs.pop("prompt_embeds", prompt_embeds)
+                negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
 
-                # call the callback, if provided
-                if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
-                    progress_bar.update()
-                    if callback is not None and i % callback_steps == 0:
-                        step_idx = i // getattr(self.scheduler, "order", 1)
-                        callback(step_idx, t, latents)
+            # call the callback, if provided
+            if i == len(timesteps) - 1 or ((i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0):
+                #progress_bar.update()
+                if callback is not None and i % callback_steps == 0:
+                    step_idx = i // getattr(self.scheduler, "order", 1)
+                    callback(step_idx, t, latents)
 
-                if XLA_AVAILABLE:
-                    xm.mark_step()
+            if XLA_AVAILABLE:
+                xm.mark_step()
 
         if not output_type == "latent":
             image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False, generator=generator)[
