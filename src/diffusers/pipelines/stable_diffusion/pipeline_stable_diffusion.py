@@ -1060,7 +1060,6 @@ class StableDiffusionPipeline(
                 # Only use Riemannian for timesteps below a threshold (later in sampling)
                 
                 if riemann:
-                    print("riemann")
                     def get_variance(timestep, scheduler):
                         """Get variance for any scheduler type"""
                         try:
